@@ -1,0 +1,1389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AUTONOMOUS NOC — AI Self-Healing Network</title>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;700&family=Bebas+Neue&display=swap" rel="stylesheet">
+<style>
+:root {
+  --void: #020408;
+  --deep: #040c14;
+  --panel: #060f1a;
+  --surface: #0a1825;
+  --rim: #0e2236;
+  --rim-hot: #1a4060;
+  --neon: #00e5ff;
+  --neon2: #00ff9d;
+  --fire: #ff6b00;
+  --danger: #ff1744;
+  --warn: #ffab00;
+  --mute: #1e3a52;
+  --ghost: #2a4a62;
+  --text: #b0d4e8;
+  --dim: #4a7a9b;
+  --faint: #1a3348;
+  --healing: #00ff9d;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--void);
+  color: var(--text);
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 500;
+  overflow-x: hidden;
+}
+
+/* ANIMATED BG */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 60% 40% at 20% 50%, rgba(0,229,255,0.04) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 60% at 80% 30%, rgba(0,255,157,0.03) 0%, transparent 60%),
+    repeating-linear-gradient(0deg, transparent 0px, transparent 29px, rgba(0,229,255,0.025) 29px, rgba(0,229,255,0.025) 30px),
+    repeating-linear-gradient(90deg, transparent 0px, transparent 29px, rgba(0,229,255,0.015) 29px, rgba(0,229,255,0.015) 30px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* SCANLINES */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(0deg, rgba(0,0,0,0.12) 0px, rgba(0,0,0,0.12) 1px, transparent 1px, transparent 4px);
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* NAV TABS */
+.nav-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  background: rgba(2,4,8,0.95);
+  border-bottom: 1px solid var(--rim-hot);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  backdrop-filter: blur(20px);
+}
+
+.nav-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+}
+
+.nav-logo-mark {
+  width: 32px; height: 32px;
+  border: 2px solid var(--neon);
+  display: grid;
+  place-items: center;
+  position: relative;
+  animation: logo-pulse 3s ease-in-out infinite;
+}
+
+@keyframes logo-pulse {
+  0%,100% { box-shadow: 0 0 0 0 rgba(0,229,255,0.5), inset 0 0 0 0 rgba(0,229,255,0.1); }
+  50% { box-shadow: 0 0 20px 4px rgba(0,229,255,0.2), inset 0 0 10px rgba(0,229,255,0.2); }
+}
+
+.nav-logo-mark svg { width:16px; height:16px; fill:var(--neon); }
+
+.nav-title { font-family:'Bebas Neue'; font-size:18px; letter-spacing:4px; color:var(--neon); }
+.nav-sub { font-family:'JetBrains Mono'; font-size:8px; letter-spacing:3px; color:var(--dim); margin-top:1px; }
+
+.tabs { display:flex; gap:0; }
+
+.tab {
+  padding: 16px 22px;
+  font-size:11px;
+  letter-spacing:3px;
+  color: var(--dim);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--neon); border-bottom-color: var(--neon); background: rgba(0,229,255,0.04); }
+
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.autonomy-badge {
+  font-family: 'JetBrains Mono';
+  font-size: 9px;
+  letter-spacing: 2px;
+  padding: 5px 12px;
+  border: 1px solid var(--neon2);
+  color: var(--neon2);
+  background: rgba(0,255,157,0.06);
+  animation: badge-glow 2s ease-in-out infinite;
+}
+
+@keyframes badge-glow {
+  0%,100% { box-shadow: 0 0 0 0 rgba(0,255,157,0.3); }
+  50% { box-shadow: 0 0 12px 2px rgba(0,255,157,0.15); }
+}
+
+.clock-noc { font-family:'JetBrains Mono'; font-size:12px; color:var(--neon); letter-spacing:2px; }
+
+/* PAGES */
+.page { display:none; position:relative; z-index:1; }
+.page.active { display:block; }
+
+/* ========== PAGE 1: DASHBOARD ========== */
+.dashboard { padding: 16px 20px; display:flex; flex-direction:column; gap:14px; }
+
+/* TOP METRICS */
+.top-metrics { display:grid; grid-template-columns: repeat(5,1fr); gap:10px; }
+
+.metric-card {
+  background: var(--panel);
+  border: 1px solid var(--rim);
+  padding: 16px;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s;
+  cursor: default;
+}
+
+.metric-card::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+}
+
+.metric-card.neon::after { background: linear-gradient(90deg, transparent, var(--neon), transparent); }
+.metric-card.green::after { background: linear-gradient(90deg, transparent, var(--neon2), transparent); }
+.metric-card.fire::after { background: linear-gradient(90deg, transparent, var(--fire), transparent); }
+.metric-card.danger::after { background: linear-gradient(90deg, transparent, var(--danger), transparent); }
+.metric-card.warn::after { background: linear-gradient(90deg, transparent, var(--warn), transparent); }
+
+.metric-card:hover { border-color: var(--rim-hot); transform: translateY(-1px); }
+
+.m-icon { font-size: 18px; margin-bottom: 8px; }
+.m-label { font-size: 9px; letter-spacing: 3px; color: var(--dim); text-transform: uppercase; margin-bottom: 4px; }
+.m-value { font-family: 'Bebas Neue'; font-size: 38px; line-height: 1; letter-spacing: 2px; }
+.m-value.neon { color: var(--neon); text-shadow: 0 0 20px rgba(0,229,255,0.4); }
+.m-value.green { color: var(--neon2); text-shadow: 0 0 20px rgba(0,255,157,0.4); }
+.m-value.fire { color: var(--fire); text-shadow: 0 0 20px rgba(255,107,0,0.4); }
+.m-value.danger { color: var(--danger); text-shadow: 0 0 20px rgba(255,23,68,0.4); }
+.m-value.warn { color: var(--warn); text-shadow: 0 0 20px rgba(255,171,0,0.4); }
+.m-sub { font-size: 10px; color: var(--dim); margin-top: 3px; font-family: 'JetBrains Mono'; }
+
+.m-trend { position:absolute; bottom:12px; right:12px; font-family:'JetBrains Mono'; font-size:10px; }
+.trend-up { color:var(--neon2); }
+.trend-dn { color:var(--danger); }
+
+/* MID ROW */
+.mid-row { display:grid; grid-template-columns: 1.4fr 1fr 320px; gap:14px; }
+
+/* PANEL */
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--rim);
+  display:flex;
+  flex-direction:column;
+  position:relative;
+  overflow:hidden;
+}
+
+.panel::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, var(--rim-hot) 30%, var(--rim-hot) 70%, transparent 100%);
+}
+
+.ph {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--rim);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  background: rgba(0,229,255,0.02);
+}
+
+.ph-title { font-family:'Bebas Neue'; font-size:13px; letter-spacing:4px; color:var(--neon); }
+.ph-tag { font-family:'JetBrains Mono'; font-size:8px; letter-spacing:2px; color:var(--dim); border:1px solid var(--rim); padding:2px 7px; }
+.pb { padding:14px 16px; flex:1; }
+
+/* HEALING LOG */
+.heal-log { display:flex; flex-direction:column; gap:6px; }
+
+.heal-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1px solid var(--rim);
+  position: relative;
+  overflow: hidden;
+  animation: fadeSlide 0.4s ease;
+}
+
+@keyframes fadeSlide { from { opacity:0; transform:translateX(-8px); } to { opacity:1; transform:translateX(0); } }
+
+.heal-item.healed { border-left: 3px solid var(--neon2); background: rgba(0,255,157,0.03); }
+.heal-item.healing { border-left: 3px solid var(--neon); background: rgba(0,229,255,0.03); }
+.heal-item.critical { border-left: 3px solid var(--danger); background: rgba(255,23,68,0.04); }
+.heal-item.predicting { border-left: 3px solid var(--warn); background: rgba(255,171,0,0.03); }
+
+.heal-item.healing::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 0; height: 100%;
+  background: linear-gradient(90deg, rgba(0,229,255,0.06), transparent);
+  animation: progress-bar 4s ease-in-out infinite;
+}
+
+@keyframes progress-bar {
+  0% { width:0; opacity:1; }
+  80% { width:100%; opacity:1; }
+  100% { width:100%; opacity:0; }
+}
+
+.heal-icon { font-size:14px; margin-top:1px; flex-shrink:0; }
+.heal-text { flex:1; }
+.heal-title { font-size:12px; color:var(--text); letter-spacing:0.5px; font-weight:600; }
+.heal-meta { font-family:'JetBrains Mono'; font-size:9px; color:var(--dim); margin-top:2px; letter-spacing:0.5px; }
+
+.heal-status {
+  font-family:'JetBrains Mono';
+  font-size:9px;
+  letter-spacing:1px;
+  padding:2px 6px;
+  border:1px solid;
+  white-space:nowrap;
+  margin-top:1px;
+}
+
+.st-healed { border-color:var(--neon2); color:var(--neon2); }
+.st-inprog { border-color:var(--neon); color:var(--neon); animation: blink-slow 1.5s ease-in-out infinite; }
+.st-crit { border-color:var(--danger); color:var(--danger); animation: blink-fast 0.6s ease-in-out infinite; }
+.st-pred { border-color:var(--warn); color:var(--warn); }
+
+@keyframes blink-slow { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+@keyframes blink-fast { 0%,100%{opacity:1;} 50%{opacity:0.2;} }
+
+/* AI BRAIN PANEL */
+.ai-panel { display:flex; flex-direction:column; gap:10px; }
+
+.ai-loop {
+  border: 1px solid var(--rim);
+  padding: 12px;
+  background: rgba(0,229,255,0.02);
+}
+
+.ai-loop-title { font-size:9px; letter-spacing:3px; color:var(--dim); text-transform:uppercase; margin-bottom:10px; }
+
+.loop-steps { display:flex; flex-direction:column; gap:0; }
+
+.loop-step {
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:7px 0;
+  border-bottom:1px solid var(--faint);
+  position:relative;
+}
+
+.loop-step:last-child { border-bottom:none; }
+
+.step-num {
+  width:22px; height:22px;
+  border:1px solid var(--rim);
+  display:grid;
+  place-items:center;
+  font-family:'JetBrains Mono';
+  font-size:9px;
+  color:var(--dim);
+  flex-shrink:0;
+  transition:all 0.3s;
+}
+
+.loop-step.active .step-num {
+  border-color:var(--neon);
+  color:var(--neon);
+  background:rgba(0,229,255,0.1);
+  box-shadow:0 0 8px rgba(0,229,255,0.3);
+}
+
+.loop-step.done .step-num {
+  border-color:var(--neon2);
+  color:var(--neon2);
+  background:rgba(0,255,157,0.08);
+}
+
+.step-label { font-size:11px; color:var(--dim); letter-spacing:0.5px; }
+.loop-step.active .step-label { color:var(--text); }
+.loop-step.done .step-label { color:var(--ghost); }
+
+.step-arrow { margin-left:auto; font-size:10px; color:var(--faint); }
+.loop-step.active .step-arrow { color:var(--neon); }
+
+/* AUTONOMY LEVEL */
+.autonomy-meter {
+  border:1px solid var(--rim);
+  padding:12px;
+}
+
+.auto-title { font-size:9px; letter-spacing:3px; color:var(--dim); margin-bottom:10px; text-transform:uppercase; }
+
+.auto-levels { display:flex; flex-direction:column; gap:5px; }
+
+.auto-level {
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:5px 8px;
+  border:1px solid transparent;
+  transition:all 0.3s;
+}
+
+.auto-level.current { border-color:var(--neon); background:rgba(0,229,255,0.05); }
+.auto-level.done-lvl { opacity:0.4; }
+.auto-level.future { opacity:0.25; }
+
+.lvl-num { font-family:'Bebas Neue'; font-size:16px; color:var(--dim); width:20px; }
+.auto-level.current .lvl-num { color:var(--neon); }
+.lvl-bar { flex:1; height:3px; background:var(--faint); }
+.lvl-fill { height:100%; background:var(--neon2); }
+.auto-level.current .lvl-fill { background:var(--neon); box-shadow:0 0 8px var(--neon); }
+.lvl-label { font-size:9px; color:var(--dim); letter-spacing:1px; width:90px; text-align:right; font-family:'JetBrains Mono'; }
+.auto-level.current .lvl-label { color:var(--text); }
+
+/* AI AGENT STATUS */
+.agents-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+
+.agent-card {
+  border:1px solid var(--rim);
+  padding:8px 10px;
+  transition:all 0.3s;
+}
+
+.agent-card:hover { border-color:var(--rim-hot); }
+
+.agent-name { font-size:9px; letter-spacing:2px; color:var(--dim); text-transform:uppercase; margin-bottom:4px; }
+.agent-status { font-family:'JetBrains Mono'; font-size:10px; }
+.agent-status.run { color:var(--neon); }
+.agent-status.idle { color:var(--ghost); }
+.agent-status.act { color:var(--neon2); }
+.agent-status.pred { color:var(--warn); }
+.agent-tasks { font-size:9px; color:var(--dim); margin-top:2px; font-family:'JetBrains Mono'; }
+
+/* NETWORK TOPOLOGY */
+.topo-canvas-wrap { height:220px; position:relative; }
+
+/* BOTTOM ROW */
+.bottom-row { display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; }
+
+/* METRIC GRAPH */
+.graph-mini { height:100px; position:relative; }
+
+/* ALERT STREAM */
+.alert-stream { display:flex; flex-direction:column; gap:5px; max-height:250px; overflow:hidden; }
+
+.alert-line {
+  font-family:'JetBrains Mono';
+  font-size:9px;
+  padding:5px 8px;
+  border-left:2px solid;
+  letter-spacing:0.5px;
+  animation:fadeSlide 0.3s ease;
+  background: rgba(6,15,26,0.5);
+}
+
+.alert-line.healed { border-color:var(--neon2); color:var(--neon2); }
+.alert-line.active { border-color:var(--neon); color:var(--neon); }
+.alert-line.crit { border-color:var(--danger); color:var(--danger); }
+.alert-line.warn { border-color:var(--warn); color:var(--warn); }
+.alert-line.info { border-color:var(--ghost); color:var(--dim); }
+
+/* ========== PAGE 2: ARCHITECTURE ========== */
+.arch-page { padding:24px 28px; position:relative; z-index:1; }
+
+.arch-title-block { margin-bottom:28px; }
+.arch-big-title { font-family:'Bebas Neue'; font-size:42px; letter-spacing:6px; color:var(--neon); text-shadow:0 0 30px rgba(0,229,255,0.3); }
+.arch-subtitle { font-family:'JetBrains Mono'; font-size:10px; letter-spacing:3px; color:var(--dim); margin-top:4px; }
+
+.arch-grid { display:grid; grid-template-columns:1fr 60px 1fr 60px 1fr; gap:0; align-items:start; }
+
+.arch-tier-block {
+  border:1px solid var(--rim);
+  background:var(--panel);
+  padding:20px;
+  position:relative;
+  transition:all 0.3s;
+}
+
+.arch-tier-block:hover { border-color:var(--rim-hot); transform:translateY(-2px); box-shadow:0 8px 30px rgba(0,0,0,0.4); }
+
+.tier-header { margin-bottom:14px; }
+.tier-num { font-family:'Bebas Neue'; font-size:36px; line-height:1; }
+.tier-num.t1 { color:var(--neon); text-shadow:0 0 20px rgba(0,229,255,0.4); }
+.tier-num.t2 { color:var(--warn); text-shadow:0 0 20px rgba(255,171,0,0.4); }
+.tier-num.t3 { color:var(--neon2); text-shadow:0 0 20px rgba(0,255,157,0.4); }
+
+.tier-name { font-family:'Bebas Neue'; font-size:16px; letter-spacing:4px; }
+.t1 ~ .tier-name, .tier-name.t1 { color:var(--neon); }
+
+.tier-badge { font-family:'JetBrains Mono'; font-size:8px; letter-spacing:2px; color:var(--dim); border:1px solid var(--rim); padding:2px 6px; display:inline-block; margin-bottom:12px; margin-top:4px; }
+
+.tier-components { display:flex; flex-direction:column; gap:7px; }
+
+.comp-item {
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:8px 10px;
+  border:1px solid var(--rim);
+  transition:all 0.2s;
+  cursor:default;
+}
+
+.comp-item:hover { border-color:var(--rim-hot); background:rgba(0,229,255,0.02); }
+
+.comp-icon { font-size:14px; }
+.comp-info { flex:1; }
+.comp-name { font-size:11px; color:var(--text); font-weight:600; letter-spacing:0.5px; }
+.comp-tech { font-family:'JetBrains Mono'; font-size:9px; color:var(--dim); margin-top:1px; }
+
+.comp-dot { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+.comp-dot.on { background:var(--neon2); box-shadow:0 0 6px var(--neon2); }
+.comp-dot.proc { background:var(--neon); box-shadow:0 0 6px var(--neon); animation:blink-slow 1.5s ease-in-out infinite; }
+.comp-dot.vis { background:var(--warn); box-shadow:0 0 6px var(--warn); }
+
+/* FLOW ARROWS */
+.arch-arrow-col {
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  padding-top:60px;
+  gap:4px;
+}
+
+.flow-arrow { width:2px; flex:1; max-height:120px; background:linear-gradient(180deg, var(--rim-hot), var(--faint)); position:relative; }
+.flow-arrow::after { content:'▼'; position:absolute; bottom:-8px; left:50%; transform:translateX(-50%); color:var(--rim-hot); font-size:10px; }
+.flow-label { font-family:'JetBrains Mono'; font-size:8px; color:var(--dim); letter-spacing:1px; writing-mode:vertical-rl; margin:8px 0; }
+
+/* CLOSED LOOP HIGHLIGHT */
+.closed-loop-box {
+  margin-top:24px;
+  border:1px solid var(--neon);
+  padding:16px 20px;
+  background:rgba(0,229,255,0.03);
+  position:relative;
+}
+
+.closed-loop-box::before {
+  content:'CLOSED-LOOP CONTROL';
+  position:absolute;
+  top:-8px; left:16px;
+  font-family:'JetBrains Mono';
+  font-size:9px;
+  letter-spacing:3px;
+  color:var(--neon);
+  background:var(--void);
+  padding:0 8px;
+}
+
+.loop-flow { display:flex; align-items:center; justify-content:space-between; gap:0; }
+
+.loop-node {
+  text-align:center;
+  flex:1;
+  padding:10px;
+  border:1px solid var(--rim);
+}
+
+.loop-node-icon { font-size:20px; margin-bottom:4px; }
+.loop-node-name { font-size:10px; color:var(--text); font-weight:600; letter-spacing:1px; }
+.loop-node-sub { font-family:'JetBrains Mono'; font-size:8px; color:var(--dim); margin-top:2px; }
+
+.loop-connector { display:flex; align-items:center; color:var(--neon); font-size:16px; padding:0 4px; }
+
+/* DEVOPS BANNER */
+.devops-banner {
+  margin-top:20px;
+  border:1px solid var(--ghost);
+  padding:14px 20px;
+  background:rgba(42,74,98,0.1);
+  display:flex;
+  align-items:center;
+  gap:20px;
+}
+
+.devops-title { font-family:'Bebas Neue'; font-size:14px; letter-spacing:4px; color:var(--ghost); margin-right:10px; }
+
+.devops-chips { display:flex; flex-wrap:wrap; gap:6px; }
+.devops-chip {
+  font-family:'JetBrains Mono'; font-size:9px; letter-spacing:1px;
+  padding:3px 9px; border:1px solid var(--rim); color:var(--dim);
+}
+.devops-chip.hot { border-color:var(--ghost); color:var(--text); }
+
+/* STATS ROW */
+.stats-row { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-top:20px; }
+
+.stat-block {
+  border:1px solid var(--rim);
+  padding:16px;
+  text-align:center;
+  background:var(--panel);
+}
+
+.stat-num { font-family:'Bebas Neue'; font-size:32px; }
+.stat-num.neon { color:var(--neon); }
+.stat-num.green { color:var(--neon2); }
+.stat-num.fire { color:var(--fire); }
+.stat-num.warn { color:var(--warn); }
+.stat-label { font-size:9px; letter-spacing:2px; color:var(--dim); text-transform:uppercase; margin-top:4px; }
+.stat-source { font-family:'JetBrains Mono'; font-size:8px; color:var(--faint); margin-top:4px; letter-spacing:1px; }
+
+/* ========== PAGE 3: INTERVIEW ========== */
+.interview-page { padding:24px 28px; position:relative; z-index:1; max-width:1100px; margin:0 auto; }
+
+.interview-hero {
+  text-align:center;
+  padding:30px 0 24px;
+  margin-bottom:24px;
+  border-bottom:1px solid var(--rim);
+}
+
+.interview-big { font-family:'Bebas Neue'; font-size:52px; letter-spacing:8px; color:var(--neon); line-height:1; text-shadow:0 0 40px rgba(0,229,255,0.3); }
+.interview-sub { font-family:'JetBrains Mono'; font-size:10px; letter-spacing:4px; color:var(--dim); margin-top:8px; }
+
+.interview-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+
+.iv-card {
+  border:1px solid var(--rim);
+  background:var(--panel);
+  padding:20px;
+  position:relative;
+  overflow:hidden;
+  transition:all 0.3s;
+}
+
+.iv-card:hover { border-color:var(--rim-hot); }
+
+.iv-card::before { content:''; position:absolute; top:0;left:0;right:0; height:2px; }
+.iv-card.c-neon::before { background:var(--neon); box-shadow:0 0 10px var(--neon); }
+.iv-card.c-green::before { background:var(--neon2); box-shadow:0 0 10px var(--neon2); }
+.iv-card.c-warn::before { background:var(--warn); box-shadow:0 0 10px var(--warn); }
+.iv-card.c-fire::before { background:var(--fire); box-shadow:0 0 10px var(--fire); }
+
+.iv-tag { font-family:'JetBrains Mono'; font-size:8px; letter-spacing:3px; color:var(--dim); text-transform:uppercase; margin-bottom:8px; }
+.iv-heading { font-family:'Bebas Neue'; font-size:16px; letter-spacing:3px; color:var(--text); margin-bottom:12px; }
+
+.iv-quote {
+  font-size:13px;
+  line-height:1.7;
+  color:var(--text);
+  font-style:italic;
+  padding:12px 14px;
+  border-left:2px solid var(--neon);
+  background:rgba(0,229,255,0.03);
+  margin-bottom:10px;
+  font-weight:400;
+}
+
+.iv-quote.green { border-left-color:var(--neon2); background:rgba(0,255,157,0.03); }
+.iv-quote.warn { border-left-color:var(--warn); background:rgba(255,171,0,0.03); }
+.iv-quote.fire { border-left-color:var(--fire); background:rgba(255,107,0,0.03); }
+
+.iv-context { font-size:10px; color:var(--dim); font-family:'JetBrains Mono'; letter-spacing:0.5px; }
+
+.keywords { display:flex; flex-wrap:wrap; gap:5px; margin-top:10px; }
+.kw {
+  font-family:'JetBrains Mono'; font-size:8px; letter-spacing:1px;
+  padding:3px 8px; border:1px solid var(--rim); color:var(--dim);
+}
+.kw.hot { border-color:var(--neon); color:var(--neon); background:rgba(0,229,255,0.05); }
+
+.buzz-list { display:flex; flex-direction:column; gap:6px; }
+.buzz-item { display:flex; align-items:flex-start; gap:10px; padding:7px 0; border-bottom:1px solid var(--faint); }
+.buzz-term { font-family:'JetBrains Mono'; font-size:10px; color:var(--neon); min-width:140px; }
+.buzz-def { font-size:11px; color:var(--dim); }
+
+/* FULL WIDTH CARD */
+.iv-card.full { grid-column:1/-1; }
+
+.one-liner-big {
+  font-family:'Rajdhani'; font-size:18px; font-weight:600;
+  color:var(--text); line-height:1.6;
+  padding:16px 20px;
+  border:1px solid var(--neon2);
+  background:rgba(0,255,157,0.04);
+  text-align:center;
+  letter-spacing:0.5px;
+}
+
+.one-liner-big strong { color:var(--neon2); }
+
+/* DEVOPS ROLE CARD */
+.devops-roles { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; }
+.role-item { border:1px solid var(--rim); padding:10px 12px; }
+.role-icon { font-size:16px; margin-bottom:4px; }
+.role-title { font-size:11px; color:var(--text); font-weight:600; letter-spacing:0.5px; margin-bottom:4px; }
+.role-desc { font-family:'JetBrains Mono'; font-size:9px; color:var(--dim); line-height:1.5; }
+
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="nav-tabs">
+  <div class="nav-logo">
+    <div class="nav-logo-mark">
+      <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg>
+    </div>
+    <div>
+      <div class="nav-title">AUTONOMOUS NOC</div>
+      <div class="nav-sub">AI SELF-HEALING NETWORK · 2026</div>
+    </div>
+  </div>
+  <div class="tabs">
+    <div class="tab active" onclick="showPage('dashboard',this)">⚡ Dashboard</div>
+    <div class="tab" onclick="showPage('architecture',this)">🏗 Architecture</div>
+    <div class="tab" onclick="showPage('interview',this)">🎯 Interview Kit</div>
+  </div>
+  <div class="nav-right">
+    <div class="autonomy-badge">L4 AUTONOMY ACTIVE</div>
+    <div class="clock-noc" id="clock">--:--:--</div>
+  </div>
+</nav>
+
+<!-- ========== PAGE 1: DASHBOARD ========== -->
+<div id="page-dashboard" class="page active">
+<div class="dashboard">
+
+  <!-- TOP METRICS -->
+  <div class="top-metrics">
+    <div class="metric-card neon">
+      <div class="m-icon">🧠</div>
+      <div class="m-label">AI Decisions Today</div>
+      <div class="m-value neon" id="aiDecisions">1,247</div>
+      <div class="m-sub">autonomous actions</div>
+      <div class="m-trend trend-up">↑ 12%</div>
+    </div>
+    <div class="metric-card green">
+      <div class="m-icon">✅</div>
+      <div class="m-label">Auto-Healed</div>
+      <div class="m-value green" id="healedCount">38</div>
+      <div class="m-sub">no human touch</div>
+      <div class="m-trend trend-up">↑ 8%</div>
+    </div>
+    <div class="metric-card warn">
+      <div class="m-icon">⚠️</div>
+      <div class="m-label">Predicted Faults</div>
+      <div class="m-value warn">3</div>
+      <div class="m-sub">before impact</div>
+      <div class="m-trend trend-up">early detect</div>
+    </div>
+    <div class="metric-card danger">
+      <div class="m-icon">🚨</div>
+      <div class="m-label">MTTR</div>
+      <div class="m-value danger">4.2</div>
+      <div class="m-sub">minutes avg (was 47m)</div>
+      <div class="m-trend trend-up">↓ 91%</div>
+    </div>
+    <div class="metric-card fire">
+      <div class="m-icon">🤖</div>
+      <div class="m-label">Human Override</div>
+      <div class="m-value fire">5%</div>
+      <div class="m-sub">of all incidents</div>
+      <div class="m-trend trend-dn">95% autonomous</div>
+    </div>
+  </div>
+
+  <!-- MID ROW -->
+  <div class="mid-row">
+
+    <!-- HEALING LOG -->
+    <div class="panel">
+      <div class="ph">
+        <div class="ph-title">AI SELF-HEALING LOG</div>
+        <div class="ph-tag">REAL-TIME · CLOSED LOOP</div>
+      </div>
+      <div class="pb" style="padding:10px 12px;">
+        <div class="heal-log" id="healLog">
+          <div class="heal-item critical">
+            <div class="heal-icon">🔴</div>
+            <div class="heal-text">
+              <div class="heal-title">FIBER CUT DETECTED — SEONI TRUNK</div>
+              <div class="heal-meta">AI Agent → RCA: Physical layer failure · Auto-rerouting via backup path</div>
+              <div class="heal-status st-inprog">● HEALING IN PROGRESS</div>
+            </div>
+          </div>
+          <div class="heal-item healed">
+            <div class="heal-icon">✅</div>
+            <div class="heal-text">
+              <div class="heal-title">BGP ROUTE FLAP — CORE NODE 3</div>
+              <div class="heal-meta">AI Agent → Pushed corrected route policy · Stabilized in 23s</div>
+              <div class="heal-status st-healed">● AUTO-HEALED</div>
+            </div>
+          </div>
+          <div class="heal-item predicting">
+            <div class="heal-icon">🟡</div>
+            <div class="heal-text">
+              <div class="heal-title">RSSI DEGRADATION PREDICTED — UBR-07</div>
+              <div class="heal-meta">ML Model: 89% confidence · Weather fade expected in 12 min · Pre-emptive MCS adjustment queued</div>
+              <div class="heal-status st-pred">● PREDICTIVE ACTION</div>
+            </div>
+          </div>
+          <div class="heal-item healed">
+            <div class="heal-icon">✅</div>
+            <div class="heal-text">
+              <div class="heal-title">HIGH CPU — EDGE ROUTER CHHINDWARA</div>
+              <div class="heal-meta">AI Agent → Traffic re-balanced · CPU 94% → 41% · No customer impact</div>
+              <div class="heal-status st-healed">● AUTO-HEALED</div>
+            </div>
+          </div>
+          <div class="heal-item healing">
+            <div class="heal-icon">🔵</div>
+            <div class="heal-text">
+              <div class="heal-title">VLAN MISCONFIGURATION — ACCESS NODE 12</div>
+              <div class="heal-meta">AI Agent → YANG/RESTCONF polling · Config drift detected · Remediation executing...</div>
+              <div class="heal-status st-inprog">● REMEDIATING</div>
+            </div>
+          </div>
+          <div class="heal-item healed">
+            <div class="heal-icon">✅</div>
+            <div class="heal-text">
+              <div class="heal-title">PACKET LOSS SPIKE — BACKHAUL LINK</div>
+              <div class="heal-meta">AI Agent → Identified QoS misconfiguration · Auto-corrected in 18s</div>
+              <div class="heal-status st-healed">● AUTO-HEALED</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI AGENTS -->
+    <div class="panel">
+      <div class="ph">
+        <div class="ph-title">AI AGENT STATUS</div>
+        <div class="ph-tag">AGENTIC NOC</div>
+      </div>
+      <div class="pb">
+        <div class="ai-panel">
+
+          <!-- CLOSED LOOP STEPS -->
+          <div class="ai-loop">
+            <div class="ai-loop-title">Closed-Loop AI Control</div>
+            <div class="loop-steps" id="loopSteps">
+              <div class="loop-step done"><div class="step-num">1</div><div class="step-label">SENSE — Telemetry Ingest</div><div class="step-arrow">✓</div></div>
+              <div class="loop-step done"><div class="step-num">2</div><div class="step-label">ANALYZE — Pattern Detection</div><div class="step-arrow">✓</div></div>
+              <div class="loop-step done"><div class="step-num">3</div><div class="step-label">DECIDE — RCA + Action Plan</div><div class="step-arrow">✓</div></div>
+              <div class="loop-step active"><div class="step-num">4</div><div class="step-label">ACT — Push Remediation</div><div class="step-arrow">→</div></div>
+              <div class="loop-step"><div class="step-num">5</div><div class="step-label">VERIFY — Validate Fix</div><div class="step-arrow">◦</div></div>
+              <div class="loop-step"><div class="step-num">6</div><div class="step-label">LEARN — Update Model</div><div class="step-arrow">◦</div></div>
+            </div>
+          </div>
+
+          <!-- AGENT CARDS -->
+          <div class="agents-grid">
+            <div class="agent-card">
+              <div class="agent-name">Fault Agent</div>
+              <div class="agent-status run">● RUNNING</div>
+              <div class="agent-tasks">1 active incident</div>
+            </div>
+            <div class="agent-card">
+              <div class="agent-name">Predict Agent</div>
+              <div class="agent-status pred">● PREDICTING</div>
+              <div class="agent-tasks">3 risks flagged</div>
+            </div>
+            <div class="agent-card">
+              <div class="agent-name">Optimize Agent</div>
+              <div class="agent-status act">● ACTING</div>
+              <div class="agent-tasks">Traffic rebalance</div>
+            </div>
+            <div class="agent-card">
+              <div class="agent-name">Verify Agent</div>
+              <div class="agent-status idle">◦ STANDBY</div>
+              <div class="agent-tasks">Awaiting fix</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- AUTONOMY LEVEL -->
+    <div class="panel">
+      <div class="ph">
+        <div class="ph-title">AUTONOMY LEVEL</div>
+        <div class="ph-tag">TM FORUM L0-L5</div>
+      </div>
+      <div class="pb">
+        <div class="autonomy-meter" style="border:none;padding:0;">
+          <div class="auto-levels">
+            <div class="auto-level done-lvl">
+              <div class="lvl-num">L0</div>
+              <div class="lvl-bar"><div class="lvl-fill" style="width:100%"></div></div>
+              <div class="lvl-label">Manual</div>
+            </div>
+            <div class="auto-level done-lvl">
+              <div class="lvl-num">L1</div>
+              <div class="lvl-bar"><div class="lvl-fill" style="width:100%"></div></div>
+              <div class="lvl-label">Assisted</div>
+            </div>
+            <div class="auto-level done-lvl">
+              <div class="lvl-num">L2</div>
+              <div class="lvl-bar"><div class="lvl-fill" style="width:100%"></div></div>
+              <div class="lvl-label">Partial Auto</div>
+            </div>
+            <div class="auto-level done-lvl">
+              <div class="lvl-num">L3</div>
+              <div class="lvl-bar"><div class="lvl-fill" style="width:100%"></div></div>
+              <div class="lvl-label">Conditional</div>
+            </div>
+            <div class="auto-level current">
+              <div class="lvl-num">L4</div>
+              <div class="lvl-bar"><div class="lvl-fill" style="width:75%"></div></div>
+              <div class="lvl-label">◄ CURRENT</div>
+            </div>
+            <div class="auto-level future">
+              <div class="lvl-num">L5</div>
+              <div class="lvl-bar"><div class="lvl-fill" style="width:0%"></div></div>
+              <div class="lvl-label">Full Auto</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top:14px; border-top:1px solid var(--faint); padding-top:12px;">
+          <div style="font-size:9px; letter-spacing:2px; color:var(--dim); margin-bottom:8px; text-transform:uppercase;">Live Alert Stream</div>
+          <div class="alert-stream" id="alertStream"></div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- end mid-row -->
+
+  <!-- BOTTOM ROW -->
+  <div class="bottom-row">
+
+    <!-- MTTR TREND -->
+    <div class="panel">
+      <div class="ph"><div class="ph-title">MTTR REDUCTION</div><div class="ph-tag">BEFORE vs AFTER AI</div></div>
+      <div class="pb">
+        <canvas id="mttrCanvas" height="100" style="width:100%;display:block;"></canvas>
+        <div style="display:flex;justify-content:space-between;margin-top:8px;">
+          <span style="font-family:'JetBrains Mono';font-size:9px;color:var(--danger);">▬ Before AI: ~47 min</span>
+          <span style="font-family:'JetBrains Mono';font-size:9px;color:var(--neon2);">▬ After AI: ~4.2 min</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- FAULT PREDICTION ACCURACY -->
+    <div class="panel">
+      <div class="ph"><div class="ph-title">FAULT PREDICTION</div><div class="ph-tag">ML MODEL ACCURACY</div></div>
+      <div class="pb">
+        <canvas id="predCanvas" height="100" style="width:100%;display:block;"></canvas>
+        <div style="display:flex;justify-content:space-between;margin-top:8px;">
+          <span style="font-family:'JetBrains Mono';font-size:9px;color:var(--neon);">▬ Accuracy %</span>
+          <span style="font-family:'JetBrains Mono';font-size:9px;color:var(--warn);">▬ False +ve %</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- OPEX SAVINGS -->
+    <div class="panel">
+      <div class="ph"><div class="ph-title">OPEX SAVINGS</div><div class="ph-tag">AUTONOMOUS IMPACT</div></div>
+      <div class="pb">
+        <canvas id="opexCanvas" height="100" style="width:100%;display:block;"></canvas>
+        <div style="margin-top:8px; font-family:'JetBrains Mono'; font-size:9px; color:var(--dim); text-align:center; letter-spacing:1px;">Source: Capgemini Research — $150-300M savings/operator over 5 years</div>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+</div><!-- end page-dashboard -->
+
+<!-- ========== PAGE 2: ARCHITECTURE ========== -->
+<div id="page-architecture" class="page">
+<div class="arch-page">
+
+  <div class="arch-title-block">
+    <div class="arch-big-title">3-TIER AUTONOMOUS NOC</div>
+    <div class="arch-subtitle">AI-POWERED SELF-HEALING NETWORK ARCHITECTURE · 2026 · TELECOM</div>
+  </div>
+
+  <!-- 3 TIERS -->
+  <div class="arch-grid">
+
+    <!-- TIER 1 -->
+    <div class="arch-tier-block">
+      <div class="tier-header">
+        <div class="tier-num t1">01</div>
+        <div class="tier-name" style="color:var(--neon);">DATA LAYER</div>
+        <div class="tier-badge">FIELD · DEVICE · TELEMETRY</div>
+      </div>
+      <div class="tier-components">
+        <div class="comp-item"><div class="comp-icon">📡</div><div class="comp-info"><div class="comp-name">UBR / 5G RAN Devices</div><div class="comp-tech">RSSI · MCS · Throughput · Port Status</div></div><div class="comp-dot on"></div></div>
+        <div class="comp-item"><div class="comp-icon">📊</div><div class="comp-info"><div class="comp-name">Streaming Telemetry</div><div class="comp-tech">gRPC · gNMI · NETCONF · YANG</div></div><div class="comp-dot on"></div></div>
+        <div class="comp-item"><div class="comp-icon">🔌</div><div class="comp-info"><div class="comp-name">SNMP / NetFlow</div><div class="comp-tech">Legacy device polling · 30s interval</div></div><div class="comp-dot on"></div></div>
+        <div class="comp-item"><div class="comp-icon">🌐</div><div class="comp-info"><div class="comp-name">OSS / BSS Interface</div><div class="comp-tech">Inventory · Service Catalog · Alarms</div></div><div class="comp-dot on"></div></div>
+        <div class="comp-item"><div class="comp-icon">🔬</div><div class="comp-info"><div class="comp-name">Digital Twin Probe</div><div class="comp-tech">Virtual replica sync · Real-time mirror</div></div><div class="comp-dot proc"></div></div>
+      </div>
+    </div>
+
+    <!-- ARROW 1 -->
+    <div class="arch-arrow-col">
+      <div class="flow-arrow"></div>
+      <div class="flow-label">STREAM</div>
+    </div>
+
+    <!-- TIER 2 -->
+    <div class="arch-tier-block">
+      <div class="tier-header">
+        <div class="tier-num t2">02</div>
+        <div class="tier-name" style="color:var(--warn);">AI BRAIN LAYER</div>
+        <div class="tier-badge">PROCESSING · AGENTIC AI · CLOSED LOOP</div>
+      </div>
+      <div class="tier-components">
+        <div class="comp-item"><div class="comp-icon">⚡</div><div class="comp-info"><div class="comp-name">Kafka Streaming Pipeline</div><div class="comp-tech">Real-time ingestion · Topic routing</div></div><div class="comp-dot proc"></div></div>
+        <div class="comp-item"><div class="comp-icon">🧠</div><div class="comp-info"><div class="comp-name">LLM / Telco AI Model</div><div class="comp-tech">NVIDIA Nemotron LTM · RCA engine</div></div><div class="comp-dot proc"></div></div>
+        <div class="comp-item"><div class="comp-icon">🤖</div><div class="comp-info"><div class="comp-name">AI Agents (Multi-Agent)</div><div class="comp-tech">Fault · Predict · Optimize · Verify</div></div><div class="comp-dot proc"></div></div>
+        <div class="comp-item"><div class="comp-icon">🔄</div><div class="comp-info"><div class="comp-name">Closed-Loop Controller</div><div class="comp-tech">Sense → Analyze → Decide → Act</div></div><div class="comp-dot proc"></div></div>
+        <div class="comp-item"><div class="comp-icon">💾</div><div class="comp-info"><div class="comp-name">Lakehouse / Time-Series DB</div><div class="comp-tech">InfluxDB · Databricks · Bronze-Gold</div></div><div class="comp-dot on"></div></div>
+      </div>
+    </div>
+
+    <!-- ARROW 2 -->
+    <div class="arch-arrow-col">
+      <div class="flow-arrow"></div>
+      <div class="flow-label">INSIGHTS</div>
+    </div>
+
+    <!-- TIER 3 -->
+    <div class="arch-tier-block">
+      <div class="tier-header">
+        <div class="tier-num t3">03</div>
+        <div class="tier-name" style="color:var(--neon2);">NOC / ACTION LAYER</div>
+        <div class="tier-badge">DARK NOC · VISUALIZATION · DEVOPS</div>
+      </div>
+      <div class="tier-components">
+        <div class="comp-item"><div class="comp-icon">🖥️</div><div class="comp-info"><div class="comp-name">Dark NOC Dashboard</div><div class="comp-tech">Real-time · Zero human input target</div></div><div class="comp-dot vis"></div></div>
+        <div class="comp-item"><div class="comp-icon">🎫</div><div class="comp-info"><div class="comp-name">Auto-Ticketing</div><div class="comp-tech">ServiceNow / Jira auto-create · Route</div></div><div class="comp-dot on"></div></div>
+        <div class="comp-item"><div class="comp-icon">🔧</div><div class="comp-info"><div class="comp-name">Auto-Remediation Engine</div><div class="comp-tech">Config push · Reroute · MCS adjust</div></div><div class="comp-dot proc"></div></div>
+        <div class="comp-item"><div class="comp-icon">👤</div><div class="comp-info"><div class="comp-name">Human-in-the-Loop</div><div class="comp-tech">Only complex/novel incidents escalate</div></div><div class="comp-dot on"></div></div>
+        <div class="comp-item"><div class="comp-icon">📱</div><div class="comp-info"><div class="comp-name">Alert / SMS / Email</div><div class="comp-tech">Severity-based · Context-enriched</div></div><div class="comp-dot on"></div></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- CLOSED LOOP BOX -->
+  <div class="closed-loop-box">
+    <div class="loop-flow">
+      <div class="loop-node">
+        <div class="loop-node-icon">📡</div>
+        <div class="loop-node-name">SENSE</div>
+        <div class="loop-node-sub">Telemetry / KPI</div>
+      </div>
+      <div class="loop-connector">→</div>
+      <div class="loop-node">
+        <div class="loop-node-icon">🧠</div>
+        <div class="loop-node-name">ANALYZE</div>
+        <div class="loop-node-sub">AI / ML Pattern</div>
+      </div>
+      <div class="loop-connector">→</div>
+      <div class="loop-node">
+        <div class="loop-node-icon">⚖️</div>
+        <div class="loop-node-name">DECIDE</div>
+        <div class="loop-node-sub">RCA + Action</div>
+      </div>
+      <div class="loop-connector">→</div>
+      <div class="loop-node">
+        <div class="loop-node-icon">⚡</div>
+        <div class="loop-node-name">ACT</div>
+        <div class="loop-node-sub">Auto-Remediate</div>
+      </div>
+      <div class="loop-connector">→</div>
+      <div class="loop-node">
+        <div class="loop-node-icon">✅</div>
+        <div class="loop-node-name">VERIFY</div>
+        <div class="loop-node-sub">Validate + Learn</div>
+      </div>
+      <div class="loop-connector" style="color:var(--dim);">⤴ loop</div>
+    </div>
+  </div>
+
+  <!-- INDUSTRY STATS -->
+  <div class="stats-row">
+    <div class="stat-block">
+      <div class="stat-num neon">91%</div>
+      <div class="stat-label">MTTR Reduction</div>
+      <div class="stat-source">Source: EPAM Dark NOC</div>
+    </div>
+    <div class="stat-block">
+      <div class="stat-num green">55%</div>
+      <div class="stat-label">OPEX Cost Cut</div>
+      <div class="stat-source">Source: TM Forum</div>
+    </div>
+    <div class="stat-block">
+      <div class="stat-num warn">95%</div>
+      <div class="stat-label">Autonomous Incidents</div>
+      <div class="stat-source">Source: EPAM White Paper</div>
+    </div>
+    <div class="stat-block">
+      <div class="stat-num fire">3.4x</div>
+      <div class="stat-label">ROI (Optimistic)</div>
+      <div class="stat-source">Source: Capgemini Research</div>
+    </div>
+  </div>
+
+  <!-- DEVOPS ROLE -->
+  <div class="devops-banner">
+    <div class="devops-title">DevOps Role →</div>
+    <div class="devops-chips">
+      <span class="devops-chip hot">CI/CD Pipeline</span>
+      <span class="devops-chip hot">Terraform IaC</span>
+      <span class="devops-chip hot">Azure Cloud</span>
+      <span class="devops-chip hot">Prometheus + Grafana</span>
+      <span class="devops-chip">Docker / K8s</span>
+      <span class="devops-chip">GitOps</span>
+      <span class="devops-chip">ELK Stack</span>
+      <span class="devops-chip">Kafka Ops</span>
+      <span class="devops-chip hot">HA + Auto-scaling</span>
+      <span class="devops-chip">SRE Practices</span>
+    </div>
+  </div>
+
+</div>
+</div><!-- end architecture -->
+
+<!-- ========== PAGE 3: INTERVIEW ========== -->
+<div id="page-interview" class="page">
+<div class="interview-page">
+
+  <div class="interview-hero">
+    <div class="interview-big">INTERVIEW KIT</div>
+    <div class="interview-sub">AI AUTONOMOUS NOC · USE CASE · DEVOPS/DEVSECOPS ROLES · 2026</div>
+  </div>
+
+  <!-- THE ONE LINER -->
+  <div class="iv-card full c-green" style="margin-bottom:16px;">
+    <div class="iv-tag">⭐ BEST ONE-LINER — USE THIS FIRST</div>
+    <div class="one-liner-big">
+      "I worked on a <strong>3-tier AI-powered Autonomous NOC</strong> where the network itself detects faults, does root cause analysis using an <strong>LLM-based AI agent</strong>, and auto-remediates — without human intervention. My role was building the <strong>DevOps infrastructure</strong> — CI/CD, IaC on Azure, and the observability stack that keeps this whole system reliable."
+    </div>
+  </div>
+
+  <div class="interview-grid">
+
+    <!-- DEVOPS ANGLE -->
+    <div class="iv-card c-neon">
+      <div class="iv-tag">🔧 DEVOPS / DEVSECOPS INTERVIEW</div>
+      <div class="iv-heading">Infrastructure & Pipeline Angle</div>
+      <div class="iv-quote">
+        "See, the AI agents and Kafka pipelines — they're great. But koi unhe deploy karega toh nahi? That's where I come in. I built the CI/CD pipeline for deploying the AI processing services, used Terraform for Azure infra provisioning, set up Prometheus and Grafana for observability, and made sure the whole system is HA with auto-scaling."
+      </div>
+      <div class="iv-context">👉 Works for: DevOps Engineer / Cloud Engineer / Platform Engineer roles</div>
+      <div class="keywords">
+        <span class="kw hot">Terraform</span><span class="kw hot">Azure</span><span class="kw hot">CI/CD</span><span class="kw hot">Prometheus</span><span class="kw">Kafka</span><span class="kw">Docker</span><span class="kw">GitOps</span>
+      </div>
+    </div>
+
+    <!-- TELECOM ANGLE -->
+    <div class="iv-card c-warn">
+      <div class="iv-tag">📡 TELECOM / NETDEVOPS INTERVIEW</div>
+      <div class="iv-heading">Network Domain Angle</div>
+      <div class="iv-quote warn">
+        "Traditional NOC mein engineer 24x7 screens dekh raha tha. Jo maine design kiya — woh ek Autonomous NOC hai. Network khud RSSI drop predict karta hai, khud BGP misconfiguration detect karta hai, aur 23 seconds mein fix bhi kar deta hai. MTTR 47 minutes se 4 minutes aa gaya — without any human touch."
+      </div>
+      <div class="iv-context">👉 Works for: NOC Engineer / Network Automation / NetDevOps roles</div>
+      <div class="keywords">
+        <span class="kw hot">MTTR</span><span class="kw hot">AIOps</span><span class="kw hot">Self-Healing</span><span class="kw">gRPC</span><span class="kw">YANG</span><span class="kw hot">Closed Loop</span>
+      </div>
+    </div>
+
+    <!-- MANAGER ANGLE -->
+    <div class="iv-card c-fire">
+      <div class="iv-tag">👔 MANAGER / PANEL ROUND</div>
+      <div class="iv-heading">Business Impact Angle</div>
+      <div class="iv-quote fire">
+        "Sir, the business case is very clear. Earlier a single outage meant 47 minutes of downtime and manual engineer effort. Now the AI agent detects, diagnoses, and fixes in under 5 minutes — autonomously. Capgemini research shows this can save $150-300 million per operator over 5 years. And we're achieving 95% autonomous incident resolution."
+      </div>
+      <div class="iv-context">👉 Works for: Panel rounds, Senior positions, Manager interviews</div>
+      <div class="keywords">
+        <span class="kw hot">ROI</span><span class="kw hot">OPEX Savings</span><span class="kw hot">95% Autonomous</span><span class="kw">SLA</span><span class="kw">Capgemini</span>
+      </div>
+    </div>
+
+    <!-- BUZZWORDS -->
+    <div class="iv-card c-neon">
+      <div class="iv-tag">🔥 POWER TERMS TO USE</div>
+      <div class="iv-heading">Industry Buzzwords 2026</div>
+      <div class="buzz-list">
+        <div class="buzz-item"><span class="buzz-term">Agentic AI</span><span class="buzz-def">AI agents jo khud decide karke action lete hain</span></div>
+        <div class="buzz-item"><span class="buzz-term">Dark NOC</span><span class="buzz-def">NOC jo bina human ke khud chalti hai</span></div>
+        <div class="buzz-item"><span class="buzz-term">Closed-Loop Control</span><span class="buzz-def">Sense → Analyze → Act → Verify cycle</span></div>
+        <div class="buzz-item"><span class="buzz-term">TM Forum L4</span><span class="buzz-def">Autonomy level 4 — highly autonomous ops</span></div>
+        <div class="buzz-item"><span class="buzz-term">LLM for RCA</span><span class="buzz-def">AI model doing root cause analysis</span></div>
+        <div class="buzz-item"><span class="buzz-term">Intent-Based Net.</span><span class="buzz-def">Network understands desired outcome</span></div>
+      </div>
+    </div>
+
+    <!-- DEVOPS ROLE BREAKDOWN -->
+    <div class="iv-card full c-green">
+      <div class="iv-tag">🎯 YOUR SPECIFIC DEVOPS ROLE IN THIS USE CASE</div>
+      <div class="iv-heading">What exactly did DevOps person do here?</div>
+      <div class="devops-roles">
+        <div class="role-item">
+          <div class="role-icon">⚙️</div>
+          <div class="role-title">CI/CD Pipeline</div>
+          <div class="role-desc">GitHub Actions / Azure DevOps se AI microservices deploy karna. Every commit → automated test → deploy to Azure AKS.</div>
+        </div>
+        <div class="role-item">
+          <div class="role-icon">🏗️</div>
+          <div class="role-title">Infrastructure as Code</div>
+          <div class="role-desc">Terraform se Azure infra provision — AKS cluster, Event Hubs (Kafka), InfluxDB, Grafana — sab code mein.</div>
+        </div>
+        <div class="role-item">
+          <div class="role-icon">📊</div>
+          <div class="role-title">Observability Stack</div>
+          <div class="role-desc">Prometheus metrics, Grafana dashboards, ELK logs — so we monitor the monitoring system itself!</div>
+        </div>
+        <div class="role-item">
+          <div class="role-icon">🔒</div>
+          <div class="role-title">Security & HA</div>
+          <div class="role-desc">Zero-trust network policies, secret management (Azure Key Vault), auto-scaling, multi-AZ HA for the NOC platform.</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- HINDI DESI VERSION -->
+  <div class="iv-card full c-neon" style="margin-top:16px;">
+    <div class="iv-tag">🇮🇳 DESI VERSION — INDIAN NOC TEAM MEIN BAAT KARNA HO TOH</div>
+    <div class="iv-quote" style="font-style:normal; font-size:14px; line-height:1.8;">
+      "Bhai, simple mein bolo toh — pehle NOC mein banda baithta tha screen dekh ke, alarm aata tha, ticket kholta tha, phir engineer ko call karta tha, engineer SSH karke dekhta tha, 47 minute lag jaate the. Ab jo system banaya hai — woh khud dekhta hai, khud samajhta hai kya problem hai, aur khud fix kar deta hai. 23 second mein. Banda tab aata hai jab AI bolta hai — yaar yeh mujhse nahi hoga, tum dekho."
+    </div>
+  </div>
+
+</div>
+</div><!-- end interview -->
+
+<script>
+// ========== CLOCK ==========
+function tick() {
+  document.getElementById('clock').textContent = new Date().toTimeString().slice(0,8);
+}
+setInterval(tick,1000); tick();
+
+// ========== PAGE SWITCHING ==========
+function showPage(id, el) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  el.classList.add('active');
+  if(id==='dashboard') { setTimeout(drawCharts,100); }
+}
+
+// ========== LIVE COUNTERS ==========
+let decisions = 1247;
+setInterval(() => {
+  decisions += Math.floor(Math.random()*3)+1;
+  const el = document.getElementById('aiDecisions');
+  if(el) el.textContent = decisions.toLocaleString();
+}, 2000);
+
+// ========== LOOP ANIMATION ==========
+const steps = ['done','done','done','active','',''];
+let loopState = 3;
+setInterval(() => {
+  const els = document.querySelectorAll('.loop-step');
+  if(!els.length) return;
+  els.forEach((el,i) => {
+    el.classList.remove('active','done');
+    if(i < loopState) el.classList.add('done');
+    else if(i === loopState) el.classList.add('active');
+  });
+  loopState = (loopState + 1) % 6;
+}, 2500);
+
+// ========== ALERT STREAM ==========
+const alertMessages = [
+  {t:'healed', m:'[04:12:09] AGENT: BGP flap on NODE-3 → Auto-healed in 23s'},
+  {t:'active',  m:'[04:12:31] AGENT: Analyzing fiber cut SEONI-TRUNK...'},
+  {t:'warn',   m:'[04:12:44] PREDICT: RSSI fade UBR-07 in ~12 min · Confidence: 89%'},
+  {t:'info',   m:'[04:13:02] KAFKA: 1,247 events/sec · All topics healthy'},
+  {t:'healed', m:'[04:13:15] AGENT: CPU spike EDGE-RTR → Rebalanced traffic'},
+  {t:'crit',   m:'[04:13:28] ALERT: Fiber cut detected · Human escalation skipped · Rerouting'},
+  {t:'info',   m:'[04:13:41] VERIFY: Config drift NODE-12 → Fix validated ✓'},
+  {t:'healed', m:'[04:13:55] AGENT: Packet loss spike → QoS corrected in 18s'},
+  {t:'active',  m:'[04:14:08] AGENT: VLAN mismatch ACCESS-12 → Remediation in progress'},
+  {t:'warn',   m:'[04:14:22] PREDICT: Backhaul congestion risk CHHINDWARA in 8 min'},
+];
+
+let alertIdx = 0;
+function addAlert() {
+  const container = document.getElementById('alertStream');
+  if(!container) return;
+  const a = alertMessages[alertIdx % alertMessages.length];
+  alertIdx++;
+  const div = document.createElement('div');
+  div.className = `alert-line ${a.t}`;
+  div.textContent = a.m;
+  container.insertBefore(div, container.firstChild);
+  while(container.children.length > 8) container.removeChild(container.lastChild);
+}
+setInterval(addAlert, 2200);
+for(let i=0;i<6;i++) addAlert();
+
+// ========== CHARTS ==========
+function drawCharts() {
+  drawMTTR();
+  drawPred();
+  drawOpex();
+}
+
+function drawMTTR() {
+  const canvas = document.getElementById('mttrCanvas');
+  if(!canvas) return;
+  canvas.width = canvas.parentElement.offsetWidth - 32;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = 100;
+  ctx.clearRect(0,0,W,H);
+
+  // Grid
+  ctx.strokeStyle = 'rgba(14,34,54,0.8)';
+  ctx.lineWidth = 1;
+  [25,50,75].forEach(y => {
+    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke();
+  });
+
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct'];
+  const before = [47,46,48,45,43,40,35,28,18,10];
+  const after =  [null,null,null,null,null,null,null,8,5,4.2];
+
+  const maxV = 50;
+  const toY = v => H - (v/maxV)*(H-10) - 5;
+  const toX = i => (i/(months.length-1))*W;
+
+  // Before line (red)
+  ctx.beginPath();
+  ctx.strokeStyle = 'rgba(255,23,68,0.7)';
+  ctx.lineWidth = 2;
+  before.forEach((v,i) => { i===0?ctx.moveTo(toX(i),toY(v)):ctx.lineTo(toX(i),toY(v)); });
+  ctx.stroke();
+
+  // After line (green) — from index 7
+  ctx.beginPath();
+  ctx.strokeStyle = 'rgba(0,255,157,0.9)';
+  ctx.lineWidth = 2.5;
+  ctx.shadowColor = 'var(--neon2)'; ctx.shadowBlur = 6;
+  let started = false;
+  after.forEach((v,i) => {
+    if(v===null) return;
+    if(!started) { ctx.moveTo(toX(i),toY(v)); started=true; }
+    else ctx.lineTo(toX(i),toY(v));
+  });
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Labels
+  ctx.fillStyle = 'rgba(74,122,155,0.7)';
+  ctx.font = '8px JetBrains Mono';
+  months.forEach((m,i) => { ctx.fillText(m, toX(i)-6, H); });
+}
+
+function drawPred() {
+  const canvas = document.getElementById('predCanvas');
+  if(!canvas) return;
+  canvas.width = canvas.parentElement.offsetWidth - 32;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = 100;
+  ctx.clearRect(0,0,W,H);
+
+  const acc  = [72,75,79,81,84,86,88,89,91,93];
+  const falsePos = [22,20,18,16,14,12,10,8,7,5];
+  const toY = (v,mx) => H - (v/mx)*(H-10) - 5;
+  const toX = i => (i/9)*W;
+
+  ctx.strokeStyle = 'rgba(14,34,54,0.6)'; ctx.lineWidth=1;
+  [25,50,75].forEach(y=>{ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();});
+
+  ctx.beginPath(); ctx.strokeStyle='rgba(0,229,255,0.8)'; ctx.lineWidth=2;
+  acc.forEach((v,i)=>{ i===0?ctx.moveTo(toX(i),toY(v,100)):ctx.lineTo(toX(i),toY(v,100)); });
+  ctx.stroke();
+
+  ctx.beginPath(); ctx.strokeStyle='rgba(255,171,0,0.7)'; ctx.lineWidth=1.5;
+  falsePos.forEach((v,i)=>{ i===0?ctx.moveTo(toX(i),toY(v,100)):ctx.lineTo(toX(i),toY(v,100)); });
+  ctx.stroke();
+
+  ctx.fillStyle='rgba(0,229,255,0.9)';
+  ctx.font='9px JetBrains Mono';
+  ctx.fillText('93%',W-24,toY(93,100)-4);
+}
+
+function drawOpex() {
+  const canvas = document.getElementById('opexCanvas');
+  if(!canvas) return;
+  canvas.width = canvas.parentElement.offsetWidth - 32;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = 100;
+  ctx.clearRect(0,0,W,H);
+
+  const labels = ['Y1','Y2','Y3','Y4','Y5'];
+  const savings = [20,45,75,115,165];
+  const barW = (W / labels.length) * 0.5;
+  const maxV = 200;
+
+  labels.forEach((l,i) => {
+    const x = (i/labels.length)*W + (W/labels.length)*0.25;
+    const h = (savings[i]/maxV)*(H-20);
+    const y = H - h - 15;
+
+    const grad = ctx.createLinearGradient(0,y,0,H-15);
+    grad.addColorStop(0,'rgba(0,255,157,0.7)');
+    grad.addColorStop(1,'rgba(0,255,157,0.1)');
+
+    ctx.fillStyle = grad;
+    ctx.fillRect(x, y, barW, h);
+
+    ctx.strokeStyle='rgba(0,255,157,0.4)';
+    ctx.lineWidth=1;
+    ctx.strokeRect(x,y,barW,h);
+
+    ctx.fillStyle='rgba(74,122,155,0.8)';
+    ctx.font='8px JetBrains Mono';
+    ctx.fillText(l, x+barW/2-5, H-2);
+
+    ctx.fillStyle='rgba(0,255,157,0.9)';
+    ctx.font='8px JetBrains Mono';
+    ctx.fillText('$'+savings[i]+'M', x-2, y-3);
+  });
+}
+
+setTimeout(drawCharts, 300);
+window.addEventListener('resize', () => { if(document.getElementById('page-dashboard').classList.contains('active')) drawCharts(); });
+
+</script>
+</body>
+</html>
